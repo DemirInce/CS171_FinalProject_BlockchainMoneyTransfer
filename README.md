@@ -1,1 +1,1 @@
-# CS171---Final-Project---Blockchain-Money-Transfer
+# CS171/Final_Project/Blockchain_Money_Transfer
