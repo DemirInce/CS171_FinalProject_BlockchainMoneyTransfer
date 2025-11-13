@@ -1,10 +1,37 @@
+import hashlib
+import random
+import string
+
+def sha256(data):
+    return hashlib.sha256(data.encode()).hexdigest()
+
+def generate_hash(transaction):
+    while True:
+        nonce = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+        h = sha256(str(transaction) + nonce)
+        if h[-1] in '01234':
+            return nonce, h
 class Block:
-    def __init__(self, value):
+    def __init__(self, value, previous=None):
         self.transaction= value
 
-        self.next = None
-        self.prev = None
+        self.nonce, self.hash_value = generate_hash(value)
 
+        self.next = None
+        self.prev = previous
+
+        if previous:
+            prev_data = str(previous.transaction) + previous.nonce + previous.hash_value
+            self.hash_pointer = sha256(prev_data)
+        else:
+            self.hash_pointer = None
+        
+    def __repr__(self):
+            return (f"Block(Tx={self.transaction}, "
+                    f"Nonce={self.nonce}, "
+                    f"Hash={self.hash_value[:10]}..., "
+                    f"PrevHash={self.hash_pointer[:10] if self.hash_pointer else None}...)")
+            
 class BlockChain:
     def __init__(self):
         self.len = 0
@@ -15,61 +42,44 @@ class BlockChain:
         if self.len == 0:
             self.head = self.tail = Block(value)
         else:
-            self.tail.next = Block(value)
-            self.tail.next.prev = self.tail
-            self.tail = self.tail.next
+            new_block = Block(value, self.tail)
+            self.tail.next = new_block
+            self.tail = new_block
 
         self.len += 1
 
     def get_tail(self):
-        return self.tail.transaction
+        return self.tail
     
-    def get(self, n):
-        if n >= self.len: raise IndexError
+    def __getitem__(self, n):
+        if n < 0:
+            n += self.len
+        if n < 0 or n >= self.len:
+            raise IndexError
         block = self.head
         for _ in range(n):
             block = block.next
-        return block.transaction
-    
-    def pop(self):
-        self.tail = self.tail.prev
-        self.len -= 1
+        return block
 
-    def remove(self, n):
-        if n >= self.len: raise IndexError
-        block = self.head
-        for _ in range(n):
-            block = block.next
-        block.prev.next = block.next   
-        self.len -= 1
-
-    def print(self):
+    def __repr__(self):
+        s = ""
         block = self.head
         for i in range(self.len):
-            if i == self.len-1:
-                print(block.transaction)
-            else:
-                print(block.transaction, end=", ")
-            block = block.next  
+            s = s + repr(block) + ('' if  i == self.len-1 else '\n')
+            block = block.next 
+        return s 
     
 def main():
     bc = BlockChain()
     bc.append((1,2,10))
     bc.append((1,2,20))
     bc.append((2,1,10))
-    print(bc.len)
 
-    for i in range(bc.len):
-        print(i)
-        print(bc.get(i))
     print(bc.get_tail())
 
-    print()
+    print(bc[1])
 
-    bc.remove(1)
-    bc.print()
-    bc.pop()
-    bc.print()
+    print(bc)
 
 if __name__ == "__main__":
     main()
