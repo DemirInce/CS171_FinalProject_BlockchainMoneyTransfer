@@ -16,3 +16,17 @@
 
 5. **printBalance**  
    Prints the balance of all 5 accounts on that node.
+
+6. **debugMessage(client id, message)**
+   Sends a debug Message to the specified client, which echoes it.
+
+## Communication Protocol
+
+1. **Fire and Forget Send**
+   Messages are sent without waiting for a reply.
+
+2. **Listener Thread**
+   Listener Deamon Thread listens for incoming messages
+
+3. **FIFO Worker**
+   Worker Thread handles requests enqueued by the Listener Thread in FIFO order.

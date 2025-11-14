@@ -56,7 +56,7 @@ def listen(p):
             req = match.group(2)
 
             if DEBUG:
-                print(f"[DEBUG C-{ID}] Enqueueing request from C-{client_id}: {req}")
+                print(f"[DEBUG C-{ID}] Recieved request from C-{client_id}: {req}")
 
             if not p.dead:
                 request_queue.put((p, client_id, req))
