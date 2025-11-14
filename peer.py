@@ -4,6 +4,16 @@ import argparse
 import socket
 import time
 import threading
+import queue
+
+LOCK = threading.Lock()
+request_queue = queue.Queue()
+
+def worker():
+    while True:
+        p, client_id, req = request_queue.get()
+        handle_request(p, client_id, req)
+        request_queue.task_done()
 
 def send_request(id, msg):
     try:
@@ -46,10 +56,10 @@ def listen(p):
             req = match.group(2)
 
             if DEBUG:
-                print(f"[DEBUG C-{ID}] Received from C-{client_id}: {req}")
+                print(f"[DEBUG C-{ID}] Enqueueing request from C-{client_id}: {req}")
 
             if not p.dead:
-                threading.Thread(target=handle_request, args=(p, client_id, req), daemon=True).start()
+                request_queue.put((p, client_id, req))
 
             conn.close()
         except socket.timeout:
@@ -73,6 +83,7 @@ def main():
     p = Peer()
 
     threading.Thread(target=listen, args=(p,), daemon=True).start()
+    threading.Thread(target=worker, daemon=True).start()
 
     while True:
         cmd = input()
@@ -86,10 +97,12 @@ def main():
                 else: print("This process is alive")
 
             case "printBlockchain":
-                print(p.blockchain)
+                with LOCK:
+                    print(p.blockchain)
 
             case "printBalance":
-                print(p.account_table)
+                with LOCK:
+                    print(p.account_table)
 
             case _:
                 pattern = r'(\w+)\((.*?)\)'
