@@ -17,8 +17,8 @@
 5. **printBalance**  
    Prints the balance of all 5 accounts on that node.
 
-6. **debugMessage(client id, message)**
-   Sends a debug Message to the specified client, which echoes it.
+6. **debugMessage(client id, message)**  
+   Sends a debug message to the specified client which echoes it.
 
 ## Communication Protocol
 
