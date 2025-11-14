@@ -26,7 +26,7 @@
    Messages are sent without waiting for a reply.
 
 2. **Listener Thread**  
-   Listener Deamon Thread listens for incoming messages
+   Listener Deamon Thread listens for incoming messages.
 
 3. **FIFO Worker**  
    Worker Thread handles requests enqueued by the Listener Thread in FIFO order.
