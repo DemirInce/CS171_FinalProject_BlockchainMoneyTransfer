@@ -25,14 +25,15 @@ def main(id, debug, ip):
             case _:
                 pattern = r'(\w+)\((.*?)\)'
                 parse = re.match(pattern, cmd)
-                args = [arg.strip() for arg in parse.group(2).split(',')]
-
-                if parse and parse.group(1) == "moneyTransfer":
-                    p.moneyTransfer(args[0], args[1], args[2])
-                elif parse and parse.group(1) == "debugMessage" and debug:
-                    p.send(int(args[0]), "DEBUG - " + args[1])
-                else:
-                    print("Unknown Command")
+                if parse:
+                    args = [arg.strip() for arg in parse.group(2).split(',')]
+                    if parse.group(1) == "moneyTransfer":
+                        p.moneyTransfer(args[0], args[1], args[2])
+                        continue
+                    elif parse.group(1) == "debugMessage" and debug:
+                        p.send(int(args[0]), "DEBUG - " + args[1])
+                        continue
+                print("Unknown Command")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Client")
