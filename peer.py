@@ -6,7 +6,6 @@ import time
 import threading
 
 def send_request(id, msg):
-    global ID
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s_socket:
             s_socket.connect(("127.0.0.1", id * 1234))
@@ -18,8 +17,14 @@ def send_request(id, msg):
             print(f"[DEBUG C-{ID}] Could not send message to C-{id}")
         return "NOT FOUND"
     
+def handle_request(p, client_id, req):
+    if req.startswith(f"DEBUG - "):
+        reply_msg = req[len(f"DEBUG - "):]
+        send_request(client_id, reply_msg)
+    else:
+        pass
+    
 def listen(p):
-    global ID
     c_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     c_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     c_socket.bind(('', ID * 1234))
@@ -44,11 +49,7 @@ def listen(p):
                 print(f"[DEBUG C-{ID}] Received from C-{client_id}: {req}")
 
             if not p.dead:
-                if req.startswith(f"DEBUG - "):
-                    reply_msg = req[len(f"DEBUG - "):]
-                    send_request(client_id, reply_msg)
-                else:
-                    pass
+                threading.Thread(target=handle_request, args=(p, client_id, req), daemon=True).start()
 
             conn.close()
         except socket.timeout:
