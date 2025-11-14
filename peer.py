@@ -9,55 +9,60 @@ def send_request(id, msg):
     global ID
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s_socket:
-            s_socket.connect(("127.0.0.1", id*1234))
+            s_socket.connect(("127.0.0.1", id * 1234))
             if DEBUG:
-                print(f"[DEBUG C-{ID}] Sending to {id*1234}: {msg}")
-            s_socket.sendall(msg.encode())
-            rply = s_socket.recv(1024).decode()
-
-            time.sleep(3)
-            
-            if DEBUG:
-                print(f"[DEBUG C-{ID}] Received from {id*1234}: {rply}")
-
-            return rply
-    except ConnectionRefusedError:
-        return "NOT FOUND"
-    except ConnectionResetError:
+                print(f"[DEBUG C-{ID}] Sending to C-{id}: {msg}")
+            s_socket.sendall(f"ID={ID} - {msg}".encode())
+    except (ConnectionRefusedError, ConnectionResetError):
         if DEBUG:
-            print(f"[DEBUG C-{ID}] Connection reset by peer {id}")
+            print(f"[DEBUG C-{ID}] Could not send message to C-{id}")
         return "NOT FOUND"
     
-def listen():
+def listen(p):
     global ID
     c_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     c_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    c_socket.bind(('', ID*1234))
+    c_socket.bind(('', ID * 1234))
     c_socket.listen(5)
     c_socket.settimeout(1.0)
 
     if DEBUG:
-        print(f"[DEBUG C-{ID}] Client listening on port {ID*1234}")
+        print(f"[DEBUG C-{ID}] Listening on port {ID*1234}")
 
     while True:
         try:
-            conn, _ = c_socket.accept()
-            req = conn.recv(1024).decode().strip()
-            conn.sendall(req.encode())
+            conn, addr = c_socket.accept()
+            msg = conn.recv(1024).decode().strip()
+
+            time.sleep(3) # simulated network delay
+
+            match = re.search(r'ID=(\d+) - (.*)', msg)
+            client_id = int(match.group(1))
+            req = match.group(2)
+
+            if DEBUG:
+                print(f"[DEBUG C-{ID}] Received from C-{client_id}: {req}")
+
+            if not p.dead:
+                if req.startswith(f"DEBUG - "):
+                    reply_msg = req[len(f"DEBUG - "):]
+                    send_request(client_id, reply_msg)
+                else:
+                    pass
+
             conn.close()
         except socket.timeout:
             continue
 
-def init_table():
-    table = {}
-    for i in range(1,6):
-        table[i] = 100
-    return table
-
 class Peer:
     def __init__(self):
         self.blockchain = BlockChain()
-        self.account_table = init_table()
+
+        table = {}
+        for i in range(1,6):
+            table[i] = 100
+
+        self.account_table = table
         self.dead = False
 
     def fix(self):
@@ -66,7 +71,7 @@ class Peer:
 def main():
     p = Peer()
 
-    threading.Thread(target=listen, daemon=True).start()
+    threading.Thread(target=listen, args=(p,), daemon=True).start()
 
     while True:
         cmd = input()
@@ -74,12 +79,17 @@ def main():
         match cmd:
             case "failProcess":
                 p.dead = True
+
             case "fixProcess":
-                p.fix()
+                if p.dead: p.fix()
+                else: print("This process is alive")
+
             case "printBlockchain":
                 print(p.blockchain)
+
             case "printBalance":
                 print(p.account_table)
+
             case _:
                 pattern = r'(\w+)\((.*?)\)'
                 parse = re.match(pattern, cmd)
@@ -89,7 +99,7 @@ def main():
                     print("Arguments:", args)
                 elif parse and parse.group(1) == "debugMessage" and DEBUG:
                     args = [arg.strip() for arg in parse.group(2).split(',')]
-                    send_request(int(args[0]), args[1])
+                    send_request(int(args[0]), "DEBUG - " + args[1])
                 else:
                     print("Unknown Command")
 
