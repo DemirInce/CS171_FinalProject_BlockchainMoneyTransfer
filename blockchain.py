@@ -77,7 +77,11 @@ def main():
 
     print(bc.get_tail())
 
+    print()
+
     print(bc[1])
+
+    print()
 
     print(bc)
 
