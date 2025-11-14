@@ -30,3 +30,8 @@
 
 3. **FIFO Worker**  
    Worker Thread handles requests enqueued by the Listener Thread in FIFO order.
+
+## Blockchain
+
+- **Just Works**  
+   Not much to say, it works as specified.
