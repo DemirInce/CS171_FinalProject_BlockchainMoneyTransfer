@@ -2,13 +2,15 @@ from blockchain import BlockChain
 import threading
 import queue
 import socket
-import re
 import time
+import ast
+import re
 
 class Peer:
-    def __init__(self, id, debug=False):
+    def __init__(self, id, debug=False, ip="127.0.0.1"):
         self.id = id
         self.debug = debug
+        self.ip = ip
         self.blockchain = BlockChain()
         self.account_table = {i: 100 for i in range(1,6)}
         self.dead = False
@@ -27,22 +29,25 @@ class Peer:
         with self.lock:
             print(self.account_table)
 
+    def moneyTransfer(self, from_id, to_id, amount): # TODO
+        if self.debug:
+            print(f"[DEBUG C-{self.id}] Transfer from C-{from_id}, to C-{to_id}, amount={amount}")
+
     def send(self, target_id, msg):
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s_socket:
-                s_socket.connect(("127.0.0.1", target_id * 1234))
+                s_socket.connect((self.ip, target_id * 1234))
                 if self.debug:
                     print(f"[DEBUG C-{self.id}] Sending to C-{target_id}: {msg}")
                 s_socket.sendall(f"ID={self.id} - {msg}".encode())
-        except (ConnectionRefusedError, ConnectionResetError):
+        except Exception as e:
             if self.debug:
-                print(f"[DEBUG C-{self.id}] Could not send message to C-{target_id}")
-            return "NOT FOUND"
+                print(f"[DEBUG C-{self.id}] Could not send message to C-{target_id}, Error: {e}")
 
     def _listener_thread(self):
         c_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         c_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        c_socket.bind(('', self.id * 1234))
+        c_socket.bind((self.ip, self.id * 1234))
         c_socket.listen(5)
         c_socket.settimeout(1.0)
 
@@ -80,5 +85,9 @@ class Peer:
             reply_msg = req[len("DEBUG - "):]
             self.send(client_id, reply_msg)
         else:
-            #stuff
-            pass
+            try:
+                req_tupple = ast.literal_eval(req)
+                if self.debug:
+                    print(f"[DEBUG C-{self.id}] Handling request: {req_tupple}")               
+            except:
+                pass

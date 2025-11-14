@@ -1,9 +1,9 @@
 from peer import Peer
-import re
 import argparse
+import re
 
-def main(id, debug):
-    p = Peer(id, debug)
+def main(id, debug, ip):
+    p = Peer(id, debug, ip)
 
     while True:
         cmd = input()
@@ -25,12 +25,11 @@ def main(id, debug):
             case _:
                 pattern = r'(\w+)\((.*?)\)'
                 parse = re.match(pattern, cmd)
+                args = [arg.strip() for arg in parse.group(2).split(',')]
 
                 if parse and parse.group(1) == "moneyTransfer":
-                    args = [arg.strip() for arg in parse.group(2).split(',')]
-                    print("Arguments:", args)
+                    p.moneyTransfer(args[0], args[1], args[2])
                 elif parse and parse.group(1) == "debugMessage" and debug:
-                    args = [arg.strip() for arg in parse.group(2).split(',')]
                     p.send(int(args[0]), "DEBUG - " + args[1])
                 else:
                     print("Unknown Command")
@@ -39,6 +38,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Client")
     parser.add_argument("--id", type=int, required=True)
     parser.add_argument("--debug", type=bool, required=False, default=False)
+    parser.add_argument("--ip", type=str, required=False, default="127.0.0.1")
+
     args = parser.parse_args()
 
-    main(args.id, args.debug)
+    main(args.id, args.debug, args.ip)
