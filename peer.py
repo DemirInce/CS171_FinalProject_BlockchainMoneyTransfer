@@ -1,10 +1,19 @@
 from blockchain import BlockChain
+from blockchain import Block
+from enum import Enum
 import threading
 import queue
 import socket
 import time
 import ast
 import re
+
+class State(Enum):
+    IDLE = 0                # == WARI_FOR_PREPARE or New Transaction
+    WAIT_FOR_PROMISE = 1    # == SENT_PREPRARE
+    SENT_PROMISE = 2        # == WAIT_FOR_ACCEPT
+    WAIT_FOR_ACCEPTED = 3   # == SENT_ACCPET
+    SENT_ACCEPTED = 4       # == WAIT_FOR_DECIDE
 
 class Peer:
     def __init__(self, id, debug=False, ip="127.0.0.1"):
@@ -21,6 +30,15 @@ class Peer:
         threading.Thread(target=self._listener_thread, daemon=True).start()
         threading.Thread(target=self._worker_thread, daemon=True).start()
 
+        self.paxos_state = State.IDLE
+        self.proposed_block = None
+        self.ballot_num = 0
+        self.accept_Val = None #Block
+        self.accept_Num = 0
+
+        self.promise_count = 0
+        self.accepted_count = 0
+
     def print_blockchain(self):
         with self.lock:
             print(self.blockchain)
@@ -29,9 +47,18 @@ class Peer:
         with self.lock:
             print(self.account_table)
 
-    def moneyTransfer(self, from_id, to_id, amount): # TODO
+    def send_preprare(self):
+        msg = f"(Prepare, {self.ballot_num + 1}, {self.id}, {self.blockchain.len + 1})"
+        for i in range(1,6):
+            if i != self.id:
+                self.send(i, msg)
+        self.paxos_state = State.WAIT_FOR_PROMISE       
+
+    def moneyTransfer(self, from_id, to_id, amount):
         if self.debug:
             print(f"[DEBUG C-{self.id}] Transfer from C-{from_id}, to C-{to_id}, amount={amount}")
+        self.proposed_block = self.blockchain.new_block((from_id, to_id, amount))
+        self.send_prepare()
 
     def send(self, target_id, msg):
         try:
@@ -88,6 +115,9 @@ class Peer:
             try:
                 req_tupple = ast.literal_eval(req)
                 if self.debug:
-                    print(f"[DEBUG C-{self.id}] Handling request: {req_tupple}")               
+                    print(f"[DEBUG C-{self.id}] Handling request: {req_tupple}")   
+                # MSG            
             except:
                 pass
+
+# f"(Promise, {self.ballot_num + 1}, {self.id}, {self.blockchain.len + 1})"

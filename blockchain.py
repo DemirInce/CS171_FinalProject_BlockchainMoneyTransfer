@@ -38,13 +38,19 @@ class BlockChain:
         self.head = None
         self.tail = None
 
-    def append(self, value):
+    def new_block(self, value):
         if self.len == 0:
-            self.head = self.tail = Block(value)
+            new_block = Block(value)
         else:
             new_block = Block(value, self.tail)
-            self.tail.next = new_block
-            self.tail = new_block
+        return new_block       
+
+    def append(self, block):
+        if self.len == 0:
+            self.head = self.tail = block
+        else:
+            self.tail.next = block
+            self.tail = block
 
         self.len += 1
 
