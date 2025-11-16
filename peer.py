@@ -277,7 +277,6 @@ class Peer:
 # TODO: Issues acording to ChatGPT:
 # - Ballot numbers are not validated in handle_accept, so outdated proposals can overwrite newer ones.
 # - romised/accepted peer tracking is global instead of per ballot and never reset correctly.
-# - You require unanimous responses instead of a majority quorum.
 # - Accepted values are not persisted, so crash recovery breaks safety.
 # - Highest accepted value from promises is ignored, violating Paxos safety.
 # - Depth/chaining is not fully validated, so block ordering can diverge.
