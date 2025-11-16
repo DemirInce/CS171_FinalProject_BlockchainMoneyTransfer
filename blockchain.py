@@ -13,7 +13,7 @@ def generate_hash(transaction):
             return nonce, h
 class Block:
     def __init__(self, value, previous=None):
-        self.transaction= value
+        self.transaction = value
 
         self.nonce, self.hash_value = generate_hash(value)
 
@@ -25,6 +25,17 @@ class Block:
             self.hash_pointer = sha256(prev_data)
         else:
             self.hash_pointer = None
+
+    @classmethod
+    def reconstruct(cls, tx, nonce, hash_value, prev, hash_pointer):
+        obj = cls.__new__(cls)
+        obj.transaction = tx
+        obj.nonce = nonce
+        obj.hash_value = hash_value
+        obj.next = None
+        obj.prev = prev
+        obj.hash_pointer = hash_pointer
+        return obj  
         
     def __repr__(self):
             return (f"Block(Tx={self.transaction}, "
@@ -38,13 +49,19 @@ class BlockChain:
         self.head = None
         self.tail = None
 
-    def append(self, value):
+    def new_block(self, value):
         if self.len == 0:
-            self.head = self.tail = Block(value)
+            new_block = Block(value)
         else:
             new_block = Block(value, self.tail)
-            self.tail.next = new_block
-            self.tail = new_block
+        return new_block       
+
+    def append(self, block):
+        if self.len == 0:
+            self.head = self.tail = block
+        else:
+            self.tail.next = block
+            self.tail = block
 
         self.len += 1
 
