@@ -25,6 +25,17 @@ class Block:
             self.hash_pointer = sha256(prev_data)
         else:
             self.hash_pointer = None
+
+    @classmethod
+    def reconstruct(cls, tx, nonce, hash_value, prev, hash_pointer):
+        obj = cls.__new__(cls)
+        obj.transaction = tx
+        obj.nonce = nonce
+        obj.hash_value = hash_value
+        obj.next = None
+        obj.prev = prev
+        obj.hash_pointer = hash_pointer
+        return obj  
         
     def __repr__(self):
             return (f"Block(Tx={self.transaction}, "

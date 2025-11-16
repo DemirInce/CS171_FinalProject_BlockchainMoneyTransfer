@@ -5,16 +5,16 @@ import threading
 import queue
 import socket
 import time
-import ast
-import re
 import json
 
-class State(Enum):
-    IDLE = 0                # == WAIT_FOR_PREPARE or New Transaction
-    WAIT_FOR_PROMISE = 1    # == SENT_PREPRARE
-    SENT_PROMISE = 2        # == WAIT_FOR_ACCEPT (after majority promises)
-    WAIT_FOR_ACCEPTED = 3   # == SENT_ACCEPT (waiting for majority accepted))
-    SENT_ACCEPTED = 4       # == WAIT_FOR_DECIDE (after majority accepted)
+#class State(Enum):
+#    IDLE = 0                # == WAIT_FOR_PREPARE or New Transaction
+#    WAIT_FOR_PROMISE = 1    # == SENT_PREPRARE
+#    SENT_PROMISE = 2        # == WAIT_FOR_ACCEPT (after majority promises)
+#    WAIT_FOR_ACCEPTED = 3   # == SENT_ACCEPT (waiting for majority accepted))
+#    SENT_ACCEPTED = 4       # == WAIT_FOR_DECIDE (after majority accepted)
+
+# I realized we never actually do anything with the states - D
 
 class Peer:
     def __init__(self, id, debug=False, ip="127.0.0.1"):
@@ -29,17 +29,17 @@ class Peer:
         self.lock = threading.Lock()
 
         threading.Thread(target=self._listener_thread, daemon=True).start()
-        threading.Thread(target=self._worker_thread, daemon=True).start()
+        for _ in range(4):
+            threading.Thread(target=self._worker_thread, daemon=True).start()
 
-        self.paxos_state = State.IDLE
         self.proposed_block = None
         self.ballot_Num = 0
-        self.accept_Val = None # Block
+        self.accept_Val = None
         self.accept_Num = 0
         self.current_depth = 0
 
-        self.promise_count = 0
-        self.accepted_count = 0
+        self.promised_peers = set()
+        self.accepted_peers = set()
 
         self.highest_accepted_num = -1
         self.highest_accepted_val = None
@@ -86,7 +86,6 @@ class Peer:
         for i in range(1,6):
             if i != self.id:
                 self.send(i, msg)
-        self.paxos_state = State.WAIT_FOR_PROMISE 
 
     def handle_prepare(self, req):
         ballot = req["ballot"]
@@ -117,7 +116,10 @@ class Peer:
         self.send(proposer_id, reply_msg)    
 
     def handle_promise(self, req):
-        pass
+        promised_id = req["from"]
+        self.promised_peers.add(promised_id)
+        if len(self.promised_peers) == 2: # 2 acceptor + 1 proposer = 3 majority of 5
+            self.send_accept()
 
     def send_accept(self):
         block = self.proposed_block
@@ -134,21 +136,69 @@ class Peer:
         for i in range(1,6):
             if i != self.id:
                 self.send(i, msg)
-        self.paxos_state = State.WAIT_FOR_ACCEPTED
 
-    def handle_accept(self, req):
-        pass
+    def handle_accept(self, req): 
+        # Placeholder, implement proper accept checks TODO
+
+        ballot = req["ballot"]
+        proposer_id = req["from"]
+
+        reply_msg = {
+            "type": "Accepted",
+            "ballot": ballot,
+            "from": self.id,
+        }
+
+        self.send(proposer_id, reply_msg)
+
 
     def handle_accepted(self, req):
-        pass
+        accepted_id = req["from"]
+        self.accepted_peers.add(accepted_id)
+        if len(self.accepted_peers) == 2: # 2 acceptor + 1 proposer = 3 majority of 5
+            self.send_decision()
+
+    def send_decision(self):
+        if self.decision_sent: return
+        self.decision_sent = True
+
+        block = self.proposed_block
+        msg = {
+            "type": "Decision",
+            "from": self.id,
+            "tx": block.transaction,
+            "nonce": block.nonce,
+            "hash_value": block.hash_value,
+            "hash_pointer": block.hash_pointer
+        }
+        for i in range(1,6):
+            if i != self.id:
+                self.send(i, msg)
+
+        self.implement_decision(block)
+        self.promised_peers = set()
+        self.accepted_peers = set()
 
     def handle_decision(self, req):
-        pass
+        new_block = Block.reconstruct(tx = req["tx"],
+                                      nonce=req["nonce"], 
+                                      hash_value=req["hash_value"], 
+                                      prev=self.blockchain.get_tail(),
+                                      hash_pointer=req["hash_pointer"])
+        self.implement_decision(new_block)
+
+    def implement_decision(self, new_block):
+        transaction = new_block.transaction
+        with self.lock:
+            self.blockchain.append(new_block)
+            self.account_table[int(transaction[0])] -= int(transaction[2])
+            self.account_table[int(transaction[1])] += int(transaction[2])
 
     def moneyTransfer(self, from_id, to_id, amount):
         if self.debug:
             print(f"[DEBUG C-{self.id}] Transfer from C-{from_id}, to C-{to_id}, amount={amount}")
         self.proposed_block = self.blockchain.new_block((from_id, to_id, amount))
+        self.decision_sent = False
         self.send_prepare()
 
     def _listener_thread(self):
@@ -165,11 +215,7 @@ class Peer:
             try:
                 conn, addr = c_socket.accept()
                 msg = conn.recv(1024).decode().strip()
-                time.sleep(3)  # Simulated network delay
-                '''original format:
-                    match = re.search(r'ID=(\d+) - (.*)', msg)
-                    client_id = int(match.group(1))
-                    req = match.group(2) '''
+
                 req = json.loads(msg)
                 client_id = req.get('from', None)
 
@@ -178,6 +224,8 @@ class Peer:
 
                 if not self.dead:
                     self.request_queue.put(req)
+                elif self.debug:
+                    print(f"[DEBUG C-{self.id}] Process dead, ignoring")
 
                 conn.close()
             except socket.timeout:
@@ -186,8 +234,7 @@ class Peer:
     def _worker_thread(self):
         while True:
             req = self.request_queue.get()
-            if self.debug:
-                print(f"[DEBUG C-{self.id}] Handling request: {req}") 
+            time.sleep(3)  # Simulated network delay
             self.handle_request(req)
             self.request_queue.task_done()
 
@@ -198,26 +245,41 @@ class Peer:
         if self.debug:
             print(f"[DEBUG C-{self.id}] Handling request: {req}") 
 
-        # MSG
-        if msg_type == "Prepare":
-            self.handle_prepare(req)
-        elif msg_type == "Promise":
-            self.handle_promise(req)
-        elif msg_type == "Accept":
-            self.handle_accept(req)
-        elif msg_type == "Accepted":
-            self.handle_accepted(req)
-        elif msg_type == "Decision":
-            self.handle_decision(req) 
-        elif msg_type == "DEBUG":
-            print(f"[DEBUG C-{self.id}] Debug Message from C-{req['from']}: {req['text']}")            
-
-# Orignal format you had:
-# f"(Promise, {self.ballot_Num + 1}, {self.id}, {self.blockchain.len + 1})"
-
-# JSON format:
+        match msg_type:
+            case "Prepare":
+                self.handle_prepare(req)
+            case "Promise":
+                self.handle_promise(req)
+            case "Accept":
+                self.handle_accept(req)
+            case "Accepted":
+                self.handle_accepted(req)
+            case "Decision":
+                self.handle_decision(req) 
+            case "DEBUG":
+                print(f"[DEBUG C-{self.id}] Debug Message from C-{req['from']}: {req['text']}")   
+                debug_reply = {
+                    "type": "DEBUG REPLY",
+                    "from": self.id,
+                    "text": req['text']
+                }  
+                self.send(int(req['from']), debug_reply)  
+            case "DEBUG REPLY":    
+                print(f"[DEBUG C-{self.id}] Debug Reply Message from C-{req['from']}: {req['text']}")   
+                 
+# Paxos Message format:
 # type: "Promise", ballot: ballot_Num, from: proposer_id, depth: depth, accepted_ballot: , accepted_tx: , accepted_nonce: , accepted_hash: , accepted_hash_pointer:
 # type: "Prepare", ballot: ballot_Num, from: proposer_id, depth: depth
 # type: "Accept", ballot: ballot_Num, from: proposer_id, tx: , nonce: , hash_value: , hash_pointer: 
 # type: "Accepted", ballot: ballot_Num, from: accepter_id
 # type: "Decision", tx: , nonce: , hash_value: , hash_pointer:
+
+# TODO: Issues acording to ChatGPT:
+# - Ballot numbers are not validated in handle_accept, so outdated proposals can overwrite newer ones.
+# - romised/accepted peer tracking is global instead of per ballot and never reset correctly.
+# - You require unanimous responses instead of a majority quorum.
+# - Accepted values are not persisted, so crash recovery breaks safety.
+# - Highest accepted value from promises is ignored, violating Paxos safety.
+# - Depth/chaining is not fully validated, so block ordering can diverge.
+# - No rejection/NACK mechanism for lower ballot messages.
+# - Multiple concurrent proposers will break the protocol due to missing conflict handling.
