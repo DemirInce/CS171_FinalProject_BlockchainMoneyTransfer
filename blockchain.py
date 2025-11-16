@@ -13,7 +13,7 @@ def generate_hash(transaction):
             return nonce, h
 class Block:
     def __init__(self, value, previous=None):
-        self.transaction= value
+        self.transaction = value
 
         self.nonce, self.hash_value = generate_hash(value)
 

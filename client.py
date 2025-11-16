@@ -31,7 +31,7 @@ def main(id, debug, ip):
                         p.moneyTransfer(args[0], args[1], args[2])
                         continue
                     elif parse.group(1) == "debugMessage" and debug:
-                        p.send(int(args[0]), "DEBUG - " + args[1])
+                        p.send(int(args[0]), {"type": "DEBUG", "from": p.id, "text": args[1]})
                         continue
                 print("Unknown Command")
 
