@@ -36,13 +36,13 @@ class Peer:
         self.ballot_Num = 0
         self.accept_Val = None
         self.accept_Num = 0
-        self.current_depth = 0
+        self.current_depth = 0              
 
         self.promised_peers = set()
         self.accepted_peers = set()
 
-        self.highest_accepted_num = -1
-        self.highest_accepted_val = None
+        self.highest_accepted_num = -1      
+        self.highest_accepted_val = None  
 
     def print_blockchain(self):
         with self.lock:
@@ -276,8 +276,7 @@ class Peer:
 
 # TODO: Issues acording to ChatGPT:
 # - Ballot numbers are not validated in handle_accept, so outdated proposals can overwrite newer ones.
-# - romised/accepted peer tracking is global instead of per ballot and never reset correctly.
-# - You require unanimous responses instead of a majority quorum.
+# - Promised/accepted peer tracking is global instead of per ballot and never reset correctly.
 # - Accepted values are not persisted, so crash recovery breaks safety.
 # - Highest accepted value from promises is ignored, violating Paxos safety.
 # - Depth/chaining is not fully validated, so block ordering can diverge.
