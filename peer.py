@@ -7,14 +7,12 @@ import socket
 import time
 import json
 
-#class State(Enum):
+# class State(Enum):
 #    IDLE = 0                # == WAIT_FOR_PREPARE or New Transaction
 #    WAIT_FOR_PROMISE = 1    # == SENT_PREPRARE
 #    SENT_PROMISE = 2        # == WAIT_FOR_ACCEPT (after majority promises)
-#    WAIT_FOR_ACCEPTED = 3   # == SENT_ACCEPT (waiting for majority accepted))
+#    WAIT_FOR_ACCEPTED = 3   # == SENT_ACCEPT (waiting for majority accepted)
 #    SENT_ACCEPTED = 4       # == WAIT_FOR_DECIDE (after majority accepted)
-
-# I realized we never actually do anything with the states - D
 
 class Peer:
     def __init__(self, id, debug=False, ip="127.0.0.1"):
@@ -41,8 +39,13 @@ class Peer:
         self.promised_peers = set()
         self.accepted_peers = set()
 
-        self.highest_accepted_num = -1
+        self.highest_accepted_num = None
         self.highest_accepted_val = None
+        self.decision_sent = False
+
+    def load_state(self):
+        # TODO: Implement load_state()
+        pass
 
     def print_blockchain(self):
         with self.lock:
@@ -52,7 +55,7 @@ class Peer:
         with self.lock:
             print(self.account_table)
     
-    def fix(self):
+    def fix(self): # TODO 10% 
         self.dead = False
         if self.debug:
             print(f"[DEBUG C-{self.id}] Process fixed.")
@@ -70,78 +73,142 @@ class Peer:
                 print(f"[DEBUG C-{self.id}] Could not send message to C-{target_id}, Error: {e}")
 
     def send_prepare(self):
-        self.ballot_Num += 1
+        promised = getattr(self, "promised_ballot", (0, 0))
+        self.ballot_Num = max(self.ballot_Num, promised[0]) + 1  
+        self.ballot = (self.ballot_Num, self.id)       
+
         self.current_depth = self.blockchain.len + 1
-        self.promise_count = 0
-        self.highest_accepted_num = -1
+        self.promised_peers = set()
+        self.accepted_peers = set()
+        self.decision_sent = False
+
+        self.highest_accepted_num = None
         self.highest_accepted_val = None
 
         msg = {
             "type": "Prepare",
-            "ballot": self.ballot_Num,
+            "ballot": self.ballot,
             "from": self.id,
             "depth": self.current_depth
         }
 
-        for i in range(1,6):
+        for i in range(1, 6):
             if i != self.id:
                 self.send(i, msg)
 
     def handle_prepare(self, req):
-        ballot = req["ballot"]
+        ballot = tuple(req["ballot"])
         proposer_id = req["from"]
         depth = req["depth"]
 
-        local_depth = self.blockchain.len + 1
-        if depth < local_depth:
+        local_depth = self.blockchain.len
+        if depth <= local_depth:
+            if self.debug:
+                print(f"[DEBUG C-{self.id}] Ignoring Prepare from C-{proposer_id} with depth {depth} <= local depth {local_depth}")
             return
-        
-        if ballot < self.accept_Num:
+
+        promised = getattr(self, "promised_ballot", (0, 0))
+        if ballot < promised:
+            if self.debug:
+                print(f"[DEBUG C-{self.id}] Ignoring Prepare from C-{proposer_id} with ballot {ballot} < promised {promised}")
             return
-        
-        self.accept_Num = ballot
+
+        self.promised_ballot = ballot
+
+        accepted_ballot = self.highest_accepted_num 
+        accepted_val = self.highest_accepted_val
 
         reply_msg = {
             "type": "Promise",
             "ballot": ballot,
             "from": self.id,
             "depth": depth,
-            "accepted_ballot": self.accept_Num,
-            "accepted_tx": self.accept_Val.transaction if self.accept_Val else None,
-            "accepted_nonce": self.accept_Val.nonce if self.accept_Val else None,
-            "accepted_hash": self.accept_Val.hash_value if self.accept_Val else None,
-            "accepted_hash_pointer": self.accept_Val.hash_pointer if self.accept_Val else None
+            "accepted_ballot": accepted_ballot,
+            "accepted_tx": accepted_val.transaction if accepted_val else None,
+            "accepted_nonce": accepted_val.nonce if accepted_val else None,
+            "accepted_hash": accepted_val.hash_value if accepted_val else None,
+            "accepted_hash_pointer": accepted_val.hash_pointer if accepted_val else None
         }
 
-        self.send(proposer_id, reply_msg)    
+        self.send(proposer_id, reply_msg)
 
     def handle_promise(self, req):
         promised_id = req["from"]
+        ballot = tuple(req["ballot"])
+
+        if ballot != getattr(self, "ballot", None):
+            if self.debug:
+                print(f"[DEBUG C-{self.id}] Ignoring Promise from C-{promised_id} with ballot {ballot} != current ballot {getattr(self,'ballot',None)}")
+            return
+
         self.promised_peers.add(promised_id)
-        if len(self.promised_peers) == 2: # 2 acceptor + 1 proposer = 3 majority of 5
+
+        accepted_ballot_raw = req.get("accepted_ballot", None)
+        accepted_tx = req.get("accepted_tx", None)
+
+        accepted_ballot = None
+        if accepted_ballot_raw is not None:
+            if isinstance(accepted_ballot_raw, list):
+                accepted_ballot = tuple(accepted_ballot_raw)
+            else:
+                accepted_ballot = accepted_ballot_raw
+
+        if accepted_ballot is not None and accepted_tx is not None:
+            if (self.highest_accepted_num is None) or (accepted_ballot > self.highest_accepted_num):
+                self.highest_accepted_num = accepted_ballot
+                self.highest_accepted_val = Block.reconstruct(
+                    tx=req["accepted_tx"],
+                    nonce=req["accepted_nonce"],
+                    hash_value=req["accepted_hash"],
+                    prev=self.blockchain.get_tail(),
+                    hash_pointer=req["accepted_hash_pointer"]
+                )
+                if self.proposed_block is None:
+                    self.proposed_block = self.highest_accepted_val
+
+        if len(self.promised_peers) == 2:
             self.send_accept()
 
     def send_accept(self):
-        block = self.proposed_block
-        msg = {
-            "type": "Accept",
-            "ballot": self.ballot_Num,
-            "from": self.id,
-            "depth": self.current_depth,
-            "tx": block.transaction,
-            "nonce": block.nonce,
-            "hash_value": block.hash_value,
-            "hash_pointer": block.hash_pointer
-        }
-        for i in range(1,6):
-            if i != self.id:
-                self.send(i, msg)
+            block = self.proposed_block
+            msg = {
+                "type": "Accept",
+                "ballot": self.ballot,
+                "from": self.id,
+                "depth": self.current_depth,
+                "tx": block.transaction,
+                "nonce": block.nonce,
+                "hash_value": block.hash_value,
+                "hash_pointer": block.hash_pointer
+            }
+            for i in range(1,6):
+                if i != self.id:
+                    self.send(i, msg)
 
-    def handle_accept(self, req): 
-        # Placeholder, implement proper accept checks TODO
-
-        ballot = req["ballot"]
+    def handle_accept(self, req):
+        ballot = tuple(req["ballot"])
         proposer_id = req["from"]
+        depth = req["depth"]
+
+        if depth <= self.blockchain.len:
+            if self.debug:
+                print(f"[DEBUG C-{self.id}] Ignoring Accept from C-{proposer_id} with depth {depth} <= local depth {self.blockchain.len}")
+            return
+
+        promised = getattr(self, "promised_ballot", (0,0))
+        if ballot < promised:
+            if self.debug:
+                print(f"[DEBUG C-{self.id}] Ignoring Accept from C-{proposer_id} with ballot {ballot} < promised {promised}")
+            return
+
+        self.promised_ballot = ballot
+        self.highest_accepted_num = ballot
+        self.highest_accepted_val = Block.reconstruct(tx = req["tx"],
+                                                      nonce=req["nonce"],
+                                                      hash_value=req["hash_value"],
+                                                      prev=self.blockchain.get_tail(),
+                                                      hash_pointer=req["hash_pointer"])
+        self.accept_Val = self.highest_accepted_val
 
         reply_msg = {
             "type": "Accepted",
@@ -151,21 +218,32 @@ class Peer:
 
         self.send(proposer_id, reply_msg)
 
-
     def handle_accepted(self, req):
         accepted_id = req["from"]
+        ballot = tuple(req["ballot"])
+
+        if ballot != getattr(self, "ballot", None):
+            if self.debug:
+                print(f"[DEBUG C-{self.id}] Ignoring Accepted from C-{accepted_id} with ballot {ballot} != current ballot {getattr(self,'ballot',None)}")
+            return
+
         self.accepted_peers.add(accepted_id)
-        if len(self.accepted_peers) == 2: # 2 acceptor + 1 proposer = 3 majority of 5
+
+        if len(self.accepted_peers) == 2:
             self.send_decision()
 
     def send_decision(self):
-        if self.decision_sent: return
-        self.decision_sent = True
+        with self.lock:
+            if self.decision_sent:
+                return
+            self.decision_sent = True
 
         block = self.proposed_block
+
         msg = {
             "type": "Decision",
             "from": self.id,
+            "depth": self.current_depth,
             "tx": block.transaction,
             "nonce": block.nonce,
             "hash_value": block.hash_value,
@@ -180,9 +258,16 @@ class Peer:
         self.accepted_peers = set()
 
     def handle_decision(self, req):
+        depth = req.get("depth", self.blockchain.len + 1)
+
+        if depth < self.blockchain.len + 1:
+            if self.debug:
+                print(f"[DEBUG C-{self.id}] Ignoring Decision with depth {depth} < local depth {self.blockchain.len + 1}")
+            return
+
         new_block = Block.reconstruct(tx = req["tx"],
-                                      nonce=req["nonce"], 
-                                      hash_value=req["hash_value"], 
+                                      nonce=req["nonce"],
+                                      hash_value=req["hash_value"],
                                       prev=self.blockchain.get_tail(),
                                       hash_pointer=req["hash_pointer"])
         self.implement_decision(new_block)
@@ -194,11 +279,31 @@ class Peer:
             self.account_table[int(transaction[0])] -= int(transaction[2])
             self.account_table[int(transaction[1])] += int(transaction[2])
 
+        # TODO: Persist state to disk
+
     def moneyTransfer(self, from_id, to_id, amount):
+        from_id = int(from_id)
+        to_id = int(to_id)
+        amount = int(amount)
+
+        if from_id not in self.account_table or to_id not in self.account_table:
+            print("Invalid account ID")
+            return
+        
+        if amount <= 0:
+            print("Amount must be positive")
+            return
+        
+        with self.lock:
+            current_balance = self.account_table.get(from_id, 0)
+            if current_balance < amount:
+                print(f"Insufficient balance in account {from_id}. Current balance: {current_balance}, amount needed: {amount}")
+                return
+            
         if self.debug:
             print(f"[DEBUG C-{self.id}] Transfer from C-{from_id}, to C-{to_id}, amount={amount}")
+
         self.proposed_block = self.blockchain.new_block((from_id, to_id, amount))
-        self.decision_sent = False
         self.send_prepare()
 
     def _listener_thread(self):
@@ -273,12 +378,3 @@ class Peer:
 # type: "Accept", ballot: ballot_Num, from: proposer_id, tx: , nonce: , hash_value: , hash_pointer: 
 # type: "Accepted", ballot: ballot_Num, from: accepter_id
 # type: "Decision", tx: , nonce: , hash_value: , hash_pointer:
-
-# TODO: Issues acording to ChatGPT:
-# - Ballot numbers are not validated in handle_accept, so outdated proposals can overwrite newer ones.
-# - romised/accepted peer tracking is global instead of per ballot and never reset correctly.
-# - Accepted values are not persisted, so crash recovery breaks safety.
-# - Highest accepted value from promises is ignored, violating Paxos safety.
-# - Depth/chaining is not fully validated, so block ordering can diverge.
-# - No rejection/NACK mechanism for lower ballot messages.
-# - Multiple concurrent proposers will break the protocol due to missing conflict handling.
