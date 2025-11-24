@@ -36,12 +36,29 @@ class Block:
         obj.prev = prev
         obj.hash_pointer = hash_pointer
         return obj  
+    
+    def verify(self, prev_block=None):
+        expected_hash = sha256(str(self.transaction) + self.nonce)
+        if self.hash_value != expected_hash:
+            return False
+
+        if prev_block:
+            prev_data = str(prev_block.transaction) + prev_block.nonce + prev_block.hash_value
+            expected_pointer = sha256(prev_data)
+            if self.hash_pointer != expected_pointer:
+                return False
+        elif self.hash_pointer is not None:
+            return False
+        
+        return True
         
     def __repr__(self):
             return (f"Block(Tx={self.transaction}, "
                     f"Nonce={self.nonce}, "
-                    f"Hash={self.hash_value[:10]}..., "
-                    f"PrevHash={self.hash_pointer[:10] if self.hash_pointer else None}...)")
+                    f"Hash={self.hash_value}, "
+                    f"PrevHash={self.hash_pointer if self.hash_pointer else None})")
+                #    f"Hash={self.hash_value[:10]}..., "
+                #    f"PrevHash={self.hash_pointer[:10] if self.hash_pointer else None}...)")
             
 class BlockChain:
     def __init__(self):
@@ -68,6 +85,18 @@ class BlockChain:
     def get_tail(self):
         return self.tail
     
+    def verify(self):
+        current = self.head
+        prev = None
+        index = 0
+        while current:
+            if not current.verify(prev):
+                return False
+            prev = current
+            current = current.next
+            index += 1
+        return True
+    
     def __getitem__(self, n):
         if n < 0:
             n += self.len
@@ -88,9 +117,14 @@ class BlockChain:
     
 def main():
     bc = BlockChain()
-    bc.append((1,2,10))
-    bc.append((1,2,20))
-    bc.append((2,1,10))
+
+    b1 = bc.new_block((1,2,10))
+    bc.append(b1)
+    b2 = bc.new_block((1,2,20))
+    bc.append(b2)
+    b3 = bc.new_block((1,2,30))
+    bc.append(b3)
+
 
     print(bc.get_tail())
 
@@ -101,6 +135,9 @@ def main():
     print()
 
     print(bc)
+
+    print(bc.get_tail().verify(bc.get_tail().prev))
+    print(bc.verify())
 
 if __name__ == "__main__":
     main()
