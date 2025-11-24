@@ -34,6 +34,7 @@ class Peer:
 
     def load_state(self):
         # TODO: Implement load_state()
+        # blockchain, accout_table, promised_ballot, highest_accepted_num and highest_accepted_val need to persist for full recovery.
         pass
 
     def print_blockchain(self):
@@ -377,3 +378,6 @@ class Peer:
 # type: "Accept", ballot: ballot_Num, from: proposer_id, tx: , nonce: , hash_value: , hash_pointer: 
 # type: "Accepted", ballot: ballot_Num, from: accepter_id
 # type: "Decision", tx: , nonce: , hash_value: , hash_pointer:
+
+# type: "Recovery", from: id
+# type: "Recovert Reply", from: id, bc: serialized_blockchain, at: account_table, pb: promised_ballot, han: highest_accepted_num  hav: highest_accepted_val
