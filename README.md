@@ -35,3 +35,9 @@
 
 - **Just Works**  
    Not much to say, it works as specified.
+
+## TODO
+
+- **Blockchain based verification**
+- **Failure Recovery**
+- **Persistent Disk Backup and Restore**
