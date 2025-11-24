@@ -2,35 +2,46 @@ from peer import Peer
 import argparse
 import re
 
+alias_table = {
+    "fail": "failprocess",
+    "fix": "fixprocess",
+    "mt": "moneytransfer",
+    "bal": "printbalance",
+    "blocks": "printblockchain",
+    "debug": "debugmessage"
+}
+
 def main(id, debug, ip):
     p = Peer(id, debug, ip)
 
     while True:
-        cmd = input()
-        if p.dead and cmd != "fixProcess": print("This process is dead."); continue
+        cmd = input().lower()
+        cmd = alias_table.get(cmd, cmd)
+        if p.dead and cmd != "fixprocess": print("This process is dead."); continue
         match cmd:
-            case "failProcess":
+            case "failprocess":
                 p.dead = True
 
-            case "fixProcess":
+            case "fixprocess":
                 if p.dead: p.fix()
                 else: print("This process is alive")
 
-            case "printBlockchain":
+            case "printblockchain":
                 p.print_blockchain()
 
-            case "printBalance":
+            case "printbalance":
                 p.print_table()
 
             case _:
                 pattern = r'(\w+)\((.*?)\)'
                 parse = re.match(pattern, cmd)
                 if parse:
+                    cmd_root = alias_table.get(parse.group(1), parse.group(1))
                     args = [arg.strip() for arg in parse.group(2).split(',')]
-                    if parse.group(1) == "moneyTransfer":
+                    if cmd_root == "moneytransfer":
                         p.moneyTransfer(args[0], args[1], args[2])
                         continue
-                    elif parse.group(1) == "debugMessage" and debug:
+                    elif cmd_root == "debugmessage" and debug:
                         p.send(int(args[0]), {"type": "DEBUG", "from": p.id, "text": args[1]})
                         continue
                 print("Unknown Command")
