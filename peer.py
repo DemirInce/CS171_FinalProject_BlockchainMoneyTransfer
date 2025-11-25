@@ -1,18 +1,30 @@
-from blockchain import BlockChain
-from blockchain import Block
+from blockchain import Block, BlockChain
+from utils import *
 import threading
 import queue
 import socket
 import time
 import json
 class Peer:
-    def __init__(self, id, debug=False, ip="127.0.0.1"):
+    def __init__(self, id, debug=False, recover=False):
         self.id = id
         self.debug = debug
-        self.ip = ip
-        self.blockchain = BlockChain()
-        self.account_table = {i: 100 for i in range(1,6)}
+        self.ip = "127.0.0.1"
         self.dead = False
+
+        if recover:
+            self.account_table, self.promised_ballot, self.blockchain = load_file(f"./data/c_{self.id}.json")
+        else:
+            self.blockchain = BlockChain()
+            self.account_table = {i: 100 for i in range(1,6)}
+            self.proposed_ballot = (0,0)
+
+            filepath = f"./data/c_{self.id}.json"
+            os.makedirs(os.path.dirname(filepath), exist_ok=True)
+            with open(filepath, "w") as f:
+                json.dump({"variables": {}, "blockchain": []}, f, indent=2)
+            if self.debug:
+                print(f"[DEBUG C-{self.id}] Reset state file {filepath} to empty")
 
         self.request_queue = queue.Queue()
         self.lock = threading.Lock()
@@ -21,9 +33,9 @@ class Peer:
         for _ in range(4):
             threading.Thread(target=self._worker_thread, daemon=True).start()
 
-        self.proposed_block = None
         self.ballot_Num = 0
-        self.current_depth = 0              
+        self.current_depth = 0          
+        self.promised_ballot = (0,0)    
 
         self.promised_peers = set()
         self.accepted_peers = set()
@@ -31,11 +43,6 @@ class Peer:
         self.highest_accepted_num = None
         self.highest_accepted_val = None
         self.decision_sent = False
-
-    def load_state(self):
-        # TODO: Implement load_state()
-        # blockchain, accout_table, promised_ballot, highest_accepted_num and highest_accepted_val need to persist for full recovery.
-        pass
 
     def print_blockchain(self):
         with self.lock:
@@ -277,9 +284,9 @@ class Peer:
 
         self.ballot = None
         self.highest_accepted_num = None
-        self.highest_accepted_val = None
+        self.highest_accepted_val = None         
 
-        # TODO: Persist state to disk
+        handle_file(f"./data/c_{self.id}.json", {"account_table": self.account_table, "promised_ballot": self.promised_ballot}, new_block)
 
     def moneyTransfer(self, from_id, to_id, amount):
         from_id = int(from_id)

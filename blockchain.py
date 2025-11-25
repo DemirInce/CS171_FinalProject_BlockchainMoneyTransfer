@@ -57,8 +57,6 @@ class Block:
                     f"Nonce={self.nonce}, "
                     f"Hash={self.hash_value}, "
                     f"PrevHash={self.hash_pointer if self.hash_pointer else None})")
-                #    f"Hash={self.hash_value[:10]}..., "
-                #    f"PrevHash={self.hash_pointer[:10] if self.hash_pointer else None}...)")
             
 class BlockChain:
     def __init__(self):
