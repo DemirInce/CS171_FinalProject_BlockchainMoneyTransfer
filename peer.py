@@ -6,18 +6,18 @@ import socket
 import time
 import json
 class Peer:
-    def __init__(self, id, debug=False, recover=False):
+    def __init__(self, id, debug=False, load=False):
         self.id = id
         self.debug = debug
         self.ip = "127.0.0.1"
         self.dead = False
 
-        if recover:
+        if load:
             self.account_table, self.promised_ballot, self.blockchain = load_file(f"./data/c_{self.id}.json")
         else:
             self.blockchain = BlockChain()
             self.account_table = {i: 100 for i in range(1,6)}
-            self.proposed_ballot = (0,0)
+            self.promised_ballot = (0,0)    
 
             filepath = f"./data/c_{self.id}.json"
             os.makedirs(os.path.dirname(filepath), exist_ok=True)
@@ -35,7 +35,7 @@ class Peer:
 
         self.ballot_Num = 0
         self.current_depth = 0          
-        self.promised_ballot = (0,0)    
+        self.proposed_ballot = (0,0)
 
         self.promised_peers = set()
         self.accepted_peers = set()
@@ -43,6 +43,8 @@ class Peer:
         self.highest_accepted_num = None
         self.highest_accepted_val = None
         self.decision_sent = False
+
+        self.top_recovery_peer = 0
 
     def print_blockchain(self):
         with self.lock:
@@ -52,10 +54,14 @@ class Peer:
         with self.lock:
             print(self.account_table)
     
-    def fix(self): # TODO 10% 
-        self.dead = False
+    def fix(self):
         if self.debug:
-            print(f"[DEBUG C-{self.id}] Process fixed.")
+            print(f"[DEBUG C-{self.id}] Fixing process.")
+        msg = {"type": "Recovery", "from": self.id}
+        for i in range(1,6):
+            if i != self.id:
+                self.send(i, msg)
+        self.dead = False
     
     def send(self, target_id, msg):
         try:
@@ -63,8 +69,9 @@ class Peer:
                 s_socket.connect((self.ip, target_id * 1234))
                 if self.debug:
                     print(f"[DEBUG C-{self.id}] Sending to C-{target_id}: {msg}")
-                payload = json.dumps(msg).encode()
-                s_socket.sendall(payload)
+                data = json.dumps(msg).encode()
+                length = len(data).to_bytes(4, "big")
+                s_socket.sendall(length + data)
         except Exception as e:
             if self.debug:
                 print(f"[DEBUG C-{self.id}] Could not send message to C-{target_id}, Error: {e}")
@@ -313,6 +320,32 @@ class Peer:
         self.proposed_block = self.blockchain.new_block((from_id, to_id, amount))
         self.send_prepare()
 
+    def handle_recovery(self, req):
+        from_id = req["from"]
+        blockchain_list = []
+        for block in self.blockchain:
+            blockchain_list.append(dict_from_block(block))
+        msg = {
+            "type": "Recovery Reply",
+            "from": self.id,
+            "blockchain": blockchain_list,
+            "account_table": self.account_table,
+            "promised_ballot": self.promised_ballot
+        }
+        self.send(from_id, msg)
+
+    def recover(self, req):
+        blockchain_list = req["blockchain"]
+        if len(blockchain_list) <= self.top_recovery_peer:
+            return
+        self.top_recovery_peer = len(blockchain_list)
+        new_blockchain = build_blockchain_from_list(blockchain_list)
+        with self.lock:
+            self.account_table = req["account_table"]
+            self.blockchain = new_blockchain
+            self.promised_ballot = tuple(req["promised_ballot"])
+        overwrite_file(f"./data/c_{self.id}.json", self.account_table, self.promised_ballot, new_blockchain)
+
     def _listener_thread(self):
         c_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         c_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -326,9 +359,14 @@ class Peer:
         while True:
             try:
                 conn, addr = c_socket.accept()
-                msg = conn.recv(1024).decode().strip()
 
-                req = json.loads(msg)
+                length_bytes = conn.recv(4)
+                length = int.from_bytes(length_bytes, "big")
+                data = b""
+                while len(data) < length:
+                    data += conn.recv(length - len(data))
+
+                req = json.loads(data.decode())
                 client_id = req.get('from', None)
 
                 if self.debug:
@@ -368,6 +406,10 @@ class Peer:
                 self.handle_accepted(req)
             case "Decision":
                 self.handle_decision(req) 
+            case "Recovery":
+                self.handle_recovery(req)
+            case "Recovery Reply":
+                self.recover(req) 
             case "DEBUG":
                 print(f"[DEBUG C-{self.id}] Debug Message from C-{req['from']}: {req['text']}")   
                 debug_reply = {

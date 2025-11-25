@@ -113,6 +113,12 @@ class BlockChain:
             block = block.next 
         return s 
     
+    def __iter__(self):
+        current = self.head
+        while current:
+            yield current
+            current = current.next
+    
 def main():
     bc = BlockChain()
 
