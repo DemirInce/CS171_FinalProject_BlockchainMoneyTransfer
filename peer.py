@@ -204,17 +204,24 @@ class Peer:
             if self.debug:
                 print(f"[DEBUG C-{self.id}] Ignoring Accept from C-{proposer_id} with ballot {ballot} < promised {promised}")
             return
+        
+        new_block = Block.reconstruct(
+            tx=req["tx"],
+            nonce=req["nonce"],
+            hash_value=req["hash_value"],
+            prev=req["hash_pointer"],
+            hash_pointer=req["hash_pointer"]
+        )
+        
+        if not new_block.verify(self.blockchain.get_tail()):
+            if self.debug:
+                print(f"[DEBUG C-{self.id}] Rejecting Accept from C-{proposer_id}: Block verification failed")
+            return
 
         with self.lock:
             self.promised_ballot = ballot
             self.highest_accepted_num = ballot
-            self.highest_accepted_val = Block.reconstruct(
-                tx = req["tx"],
-                nonce=req["nonce"],
-                hash_value=req["hash_value"],
-                prev=self.blockchain.get_tail(),
-                hash_pointer=req["hash_pointer"]
-            )
+            self.highest_accepted_val = new_block
 
         reply_msg = {
             "type": "Accepted",
@@ -268,6 +275,7 @@ class Peer:
         self.proposed_block = None
 
     def handle_decision(self, req):
+        decider_id = req["from"]
         depth = req.get("depth", self.blockchain.len + 1)
 
         if depth < self.blockchain.len + 1:
@@ -278,8 +286,14 @@ class Peer:
         new_block = Block.reconstruct(tx = req["tx"],
                                       nonce=req["nonce"],
                                       hash_value=req["hash_value"],
-                                      prev=self.blockchain.get_tail(),
+                                      prev=req["hash_pointer"],
                                       hash_pointer=req["hash_pointer"])
+        
+        if not new_block.verify(self.blockchain.get_tail()):
+            if self.debug:
+                print(f"[DEBUG C-{self.id}] Rejecting Decide from C-{decider_id}: Block verification failed")
+            return
+
         self.implement_decision(new_block)
 
     def implement_decision(self, new_block):
