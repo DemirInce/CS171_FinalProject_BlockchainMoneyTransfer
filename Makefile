@@ -2,7 +2,7 @@
 CLIENT_IDS=1 2 3 4 5
 #CLIENT_IDS=1 2
 
-.PHONY: clean
+.PHONY: clean, reset
 
 clean:
 	@for id in $(CLIENT_IDS); do \
@@ -15,3 +15,6 @@ clean:
 			echo "No client process found on port $$PORT"; \
 		fi \
 	done
+
+reset:
+	rm -r ./data

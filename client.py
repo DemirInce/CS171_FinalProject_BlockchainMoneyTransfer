@@ -50,8 +50,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Client")
     parser.add_argument("--id", type=int, required=True)
     parser.add_argument("--debug", type=bool, required=False, default=False)
-    parser.add_argument("--ip", type=str, required=False, default="127.0.0.1")
+    parser.add_argument("--load", type=bool, required=False, default=False)
 
     args = parser.parse_args()
 
-    main(args.id, args.debug, args.ip)
+    main(args.id, args.debug, args.load)
