@@ -1,4 +1,4 @@
-# CS171_FinalProject_BlockchainMoneyTransfer
+# CS171 Final Project: Distributed Blockchain Money Transfer
 
 ## Commands
 
@@ -38,12 +38,12 @@ A peer that has been put into the dead state using the failProcess command will 
 When user enters FixProcess, the peer will querry all others for the required data to bring itself up to date.  
 The peer will choose the reply with the longest blockchain depth to adopt.  
 
-**On The Fly Recovery**
+**On The Fly Recovery**  
 If a peer recieves an accept message from an elected proposer with a higher depth than its own, it'll initate recovery from that proposer.  
-Once the peer brings itself up to date with the proposer, it'll resume the Paxos process.
+Once the peer brings itself up to date with the proposer, it'll resume the Paxos process.  
 
-**Cryptographic Verification**
-All blocks that are appended into a peer's blockchain, and all full blockchains that are adopted during recovery, are cryptographically verified.
+**Cryptographic Verification**  
+All blocks that are appended into a peer's blockchain, and all full blockchains that are adopted during recovery, are cryptographically verified.  
 
 ## Communication Protocol
 
