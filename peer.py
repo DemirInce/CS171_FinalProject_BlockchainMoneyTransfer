@@ -85,7 +85,7 @@ class Peer:
                 print(f"[DEBUG C-{self.id}] Could not send message to C-{target_id}, Error: {e}")
 
     def send_prepare(self):
-        promised = getattr(self, "promised_ballot", (0, 0))
+        promised = getattr(self, "promised_ballot", (0,0))
         self.ballot_Num = max(self.ballot_Num, promised[0]) + 1  
         self.ballot = (self.ballot_Num, self.id)       
 
@@ -113,16 +113,16 @@ class Peer:
         local_depth = self.blockchain.len
         if depth < self.blockchain.len + 1:
             if self.debug:
-                print(f"[DEBUG C-{self.id}] Ignoring Prepare from C-{proposer_id} with depth {depth} <= local depth {local_depth}")
+                print(f"[DEBUG C-{self.id}] Ignoring 'Prepare' from C-{proposer_id} with depth {depth} <= local depth {local_depth}")
             return
 
-        promised = getattr(self, "promised_ballot", (0, 0))
+        promised = getattr(self, "promised_ballot", (0,0))
         if ballot < promised:
             if self.debug:
-                print(f"[DEBUG C-{self.id}] Ignoring Prepare from C-{proposer_id} with ballot {ballot} < promised {promised}")
+                print(f"[DEBUG C-{self.id}] Ignoring 'Prepare' from C-{proposer_id} with ballot {ballot} < promised {promised}")
             return
 
-        with self.lock :
+        with self.lock:
             self.promised_ballot = ballot
 
         accepted_ballot = self.highest_accepted_num
@@ -148,7 +148,7 @@ class Peer:
 
         if ballot != getattr(self, "ballot", None):
             if self.debug:
-                print(f"[DEBUG C-{self.id}] Ignoring Promise from C-{promised_id} with ballot {ballot} != current ballot {getattr(self,'ballot',None)}")
+                print(f"[DEBUG C-{self.id}] Ignoring 'Promise' from C-{promised_id} with ballot {ballot} != current ballot {getattr(self, 'ballot', None)}")
             return
 
         with self.lock:
@@ -204,21 +204,21 @@ class Peer:
 
         if depth < self.blockchain.len + 1:
             if self.debug:
-                print(f"[DEBUG C-{self.id}] Ignoring Accept from C-{proposer_id} with depth {depth} <= local depth {self.blockchain.len}")
+                print(f"[DEBUG C-{self.id}] Ignoring 'Accept' from C-{proposer_id} with depth {depth} <= local depth {self.blockchain.len}")
             return
         elif depth > self.blockchain.len + 1:
             if self.debug:
-                print(f"[DEBUG C-{self.id}] Appear to be behind C-{proposer_id}")
+                print(f"[DEBUG C-{self.id}] Appears to be behind C-{proposer_id}")
             print("Recovering")
             msg = {"type": "Recovery", "from": self.id}
             self.recovery_event.clear()
             self.send(proposer_id, msg)
             self.recovery_event.wait()
 
-        promised = getattr(self, "promised_ballot", (0, 0))
+        promised = getattr(self, "promised_ballot", (0,0))
         if ballot < promised:
             if self.debug:
-                print(f"[DEBUG C-{self.id}] Ignoring Accept from C-{proposer_id} with ballot {ballot} < promised {promised}")
+                print(f"[DEBUG C-{self.id}] Ignoring 'Accept' from C-{proposer_id} with ballot {ballot} < promised {promised}")
             return
         
         new_block = Block.reconstruct(
@@ -231,7 +231,7 @@ class Peer:
         
         if not new_block.verify(self.blockchain.get_tail()):
             if self.debug:
-                print(f"[DEBUG C-{self.id}] Rejecting Accept from C-{proposer_id}: Block verification failed")
+                print(f"[DEBUG C-{self.id}] Rejecting 'Accept' from C-{proposer_id}: Block verification failed")
             return
 
         with self.lock:
@@ -253,7 +253,7 @@ class Peer:
 
         if ballot != getattr(self, "ballot", None):
             if self.debug:
-                print(f"[DEBUG C-{self.id}] Ignoring Accepted from C-{accepted_id} with ballot {ballot} != current ballot {getattr(self,'ballot',None)}")
+                print(f"[DEBUG C-{self.id}] Ignoring 'Accepted' from C-{accepted_id} with ballot {ballot} != current ballot {getattr(self, 'ballot', None)}")
             return
 
         with self.lock:
@@ -263,9 +263,9 @@ class Peer:
             self.send_decision()
         elif self.debug:
             if len(self.accepted_peers) < 2:
-                print(f"[DEBUG C-{self.id}] Not Enough Accepted Yet. Count: {len(self.accepted_peers)}")
+                print(f"[DEBUG C-{self.id}] Not enough peers have accepted yet. Count: {len(self.accepted_peers)}")
             else:
-                print(f"[DEBUG C-{self.id}] Majority Reached")
+                print(f"[DEBUG C-{self.id}] Majority reached")
 
     def send_decision(self):
         with self.lock:
@@ -299,11 +299,11 @@ class Peer:
 
         if depth < self.blockchain.len + 1:
             if self.debug:
-                print(f"[DEBUG C-{self.id}] Ignoring Decision with depth {depth} < local depth {self.blockchain.len + 1}")
+                print(f"[DEBUG C-{self.id}] Ignoring 'Decision' with depth {depth} < local depth {self.blockchain.len + 1}")
             return
         elif depth > self.blockchain.len + 1:
             if self.debug:
-                print(f"[DEBUG C-{self.id}] Appear to be behind C-{decider_id}")
+                print(f"[DEBUG C-{self.id}] Appears to be behind C-{decider_id}")
             print("Recovering")
             msg = {"type": "Recovery", "from": self.id}
             self.recovery_event.clear()
@@ -318,7 +318,7 @@ class Peer:
         
         if not new_block.verify(self.blockchain.get_tail()):
             if self.debug:
-                print(f"[DEBUG C-{self.id}] Rejecting Decide from C-{decider_id}: Block verification failed")
+                print(f"[DEBUG C-{self.id}] Rejecting 'Decision' from C-{decider_id}: Block verification failed")
             return
 
         self.implement_decision(new_block)
@@ -335,7 +335,7 @@ class Peer:
         self.highest_accepted_val = None         
 
         handle_file(f"./data/c_{self.id}.json", {"account_table": self.account_table, "promised_ballot": self.promised_ballot}, new_block)
-        print("done.")
+        print("Done.")
 
     def moneyTransfer(self, from_id, to_id, amount):
         from_id = int(from_id)
@@ -389,7 +389,7 @@ class Peer:
         new_blockchain = build_blockchain_from_list(blockchain_list)
         if new_blockchain.verify() == False:
             if self.debug:
-                print(f"[DEBUG C-{self.id}] Recieved invalid blockchain from C-{from_id}")
+                print(f"[DEBUG C-{self.id}] Received invalid blockchain from C-{from_id}")
 
         with self.lock:
             self.account_table = {int(k): v for k, v in req["account_table"].items()}
@@ -401,7 +401,7 @@ class Peer:
 
         overwrite_file(f"./data/c_{self.id}.json", self.account_table, self.promised_ballot, new_blockchain)
         self.recovery_event.set()
-        print("done.")
+        print("Done.")
 
 
     def _listener_thread(self):
@@ -484,11 +484,11 @@ class Peer:
                 print(f"[DEBUG C-{self.id}] Debug Reply Message from C-{req['from']}: {req['text']}")   
                  
 # Paxos Message format:
-# type: "Promise", ballot: ballot_Num, from: proposer_id, depth: depth, accepted_ballot: , accepted_tx: , accepted_nonce: , accepted_hash: , accepted_hash_pointer:
+# type: "Promise", ballot: ballot_Num, from: proposer_id, depth: depth, accepted_ballot: _, accepted_tx: _, accepted_nonce: _, accepted_hash: _, accepted_hash_pointer: _
 # type: "Prepare", ballot: ballot_Num, from: proposer_id, depth: depth
-# type: "Accept", ballot: ballot_Num, from: proposer_id, tx: , nonce: , hash_value: , hash_pointer: 
+# type: "Accept", ballot: ballot_Num, from: proposer_id, tx: _, nonce: _, hash_value: _, hash_pointer: _
 # type: "Accepted", ballot: ballot_Num, from: accepter_id
-# type: "Decision", tx: , nonce: , hash_value: , hash_pointer:
+# type: "Decision", tx: _, nonce: _, hash_value: _, hash_pointer: _
 
 # type: "Recovery", from: id
-# type: "Recovert Reply", from: id, bc: serialized_blockchain, at: account_table, pb: promised_ballot, han: highest_accepted_num  hav: highest_accepted_val
+# type: "Recovery Reply", from: id, bc: serialized_blockchain, at: account_table, pb: promised_ballot, han: highest_accepted_num, hav: highest_accepted_val
