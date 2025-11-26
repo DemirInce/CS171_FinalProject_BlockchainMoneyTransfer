@@ -12,8 +12,8 @@ alias_table = {
     "debug": "debugmessage"
 }
 
-def main(id, debug, ip):
-    p = Peer(id, debug, ip)
+def main(id, debug, load):
+    p = Peer(id, debug, load)
 
     while True:
         cmd = input().lower()
