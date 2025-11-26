@@ -1,4 +1,5 @@
 from peer import Peer
+from enum import Enum
 import argparse
 import re
 
@@ -49,9 +50,18 @@ def main(id, debug, ip):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Client")
     parser.add_argument("--id", type=int, required=True)
-    parser.add_argument("--debug", type=bool, required=False, default=False)
     parser.add_argument("--load", type=bool, required=False, default=False)
-
+    parser.add_argument("--debug", type=str, required=False, default='None')
     args = parser.parse_args()
 
-    main(args.id, args.debug, args.load)
+    debug = args.debug.lower()
+    debug_num = 0
+    match debug:
+        case 'none':
+            debug_num = 0
+        case 'full':
+            debug_num = 1
+        case 'basic':
+            debug_num = 2
+
+    main(args.id, debug_num, args.load)

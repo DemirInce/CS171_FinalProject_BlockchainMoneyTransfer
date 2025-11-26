@@ -1,19 +1,25 @@
 from blockchain import Block, BlockChain
+from enum import Enum
 from utils import *
 import threading
 import queue
 import socket
 import time
 import json
+
 class Peer:
-    def __init__(self, id, debug=False, load=False):
+    def __init__(self, id, debug=0, load=False):
+
         self.id = id
         self.debug = debug
         self.ip = "127.0.0.1"
         self.dead = False
 
         if load:
-            self.account_table, self.promised_ballot, self.blockchain = load_file(f"./data/c_{self.id}.json")
+            at, pb, bc = load_file(f"./data/c_{self.id}.json")
+            self.account_table = {int(k): v for k, v in at.items()} if isinstance(at, dict) else at
+            self.promised_ballot = tuple(pb) if pb is not None else (0,0)
+            self.blockchain = bc
         else:
             self.blockchain = BlockChain()
             self.account_table = {i: 100 for i in range(1,6)}
@@ -44,7 +50,7 @@ class Peer:
         self.highest_accepted_val = None
         self.decision_sent = False
 
-        self.top_recovery_peer = 0
+        self.recovery_event = threading.Event()
 
     def print_blockchain(self):
         with self.lock:
@@ -67,8 +73,10 @@ class Peer:
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s_socket:
                 s_socket.connect((self.ip, target_id * 1234))
-                if self.debug:
+                if self.debug == 1:
                     print(f"[DEBUG C-{self.id}] Sending to C-{target_id}: {msg}")
+                elif self.debug == 2:
+                    print(f"[DEBUG C-{self.id}] Sending to C-{target_id}, Type: {msg["type"]}")
                 data = json.dumps(msg).encode()
                 length = len(data).to_bytes(4, "big")
                 s_socket.sendall(length + data)
@@ -103,7 +111,7 @@ class Peer:
         depth = req["depth"]
 
         local_depth = self.blockchain.len
-        if depth != self.blockchain.len + 1:
+        if depth < self.blockchain.len + 1:
             if self.debug:
                 print(f"[DEBUG C-{self.id}] Ignoring Prepare from C-{proposer_id} with depth {depth} <= local depth {local_depth}")
             return
@@ -114,7 +122,7 @@ class Peer:
                 print(f"[DEBUG C-{self.id}] Ignoring Prepare from C-{proposer_id} with ballot {ballot} < promised {promised}")
             return
 
-        with self.lock:
+        with self.lock :
             self.promised_ballot = ballot
 
         accepted_ballot = self.highest_accepted_num
@@ -194,10 +202,18 @@ class Peer:
         proposer_id = req["from"]
         depth = req["depth"]
 
-        if depth != self.blockchain.len + 1:
+        if depth < self.blockchain.len + 1:
             if self.debug:
                 print(f"[DEBUG C-{self.id}] Ignoring Accept from C-{proposer_id} with depth {depth} <= local depth {self.blockchain.len}")
             return
+        elif depth > self.blockchain.len + 1:
+            if self.debug:
+                print(f"[DEBUG C-{self.id}] Appear to be behind C-{proposer_id}")
+            print("Recovering")
+            msg = {"type": "Recovery", "from": self.id}
+            self.recovery_event.clear()
+            self.send(proposer_id, msg)
+            self.recovery_event.wait()
 
         promised = getattr(self, "promised_ballot", (0, 0))
         if ballot < promised:
@@ -282,6 +298,14 @@ class Peer:
             if self.debug:
                 print(f"[DEBUG C-{self.id}] Ignoring Decision with depth {depth} < local depth {self.blockchain.len + 1}")
             return
+        elif depth > self.blockchain.len + 1:
+            if self.debug:
+                print(f"[DEBUG C-{self.id}] Appear to be behind C-{decider_id}")
+            print("Recovering")
+            msg = {"type": "Recovery", "from": self.id}
+            self.recovery_event.clear()
+            self.send(decider_id, msg)
+            self.recovery_event.wait()
 
         new_block = Block.reconstruct(tx = req["tx"],
                                       nonce=req["nonce"],
@@ -308,6 +332,7 @@ class Peer:
         self.highest_accepted_val = None         
 
         handle_file(f"./data/c_{self.id}.json", {"account_table": self.account_table, "promised_ballot": self.promised_ballot}, new_block)
+        print("done.")
 
     def moneyTransfer(self, from_id, to_id, amount):
         from_id = int(from_id)
@@ -349,16 +374,32 @@ class Peer:
         self.send(from_id, msg)
 
     def recover(self, req):
+        from_id = req["from"]
+        self.recovery_event.clear()
+
         blockchain_list = req["blockchain"]
-        if len(blockchain_list) <= self.top_recovery_peer:
-            return
-        self.top_recovery_peer = len(blockchain_list)
-        new_blockchain = build_blockchain_from_list(blockchain_list)
         with self.lock:
-            self.account_table = req["account_table"]
+            if (len(blockchain_list) < self.blockchain.len) or (len(blockchain_list) == self.blockchain.len and from_id < self.id):
+                self.recovery_event.set()
+                return
+
+        new_blockchain = build_blockchain_from_list(blockchain_list)
+        if new_blockchain.verify() == False:
+            if self.debug:
+                print(f"[DEBUG C-{self.id}] Recieved invalid blockchain from C-{from_id}")
+
+        with self.lock:
+            self.account_table = {int(k): v for k, v in req["account_table"].items()}
             self.blockchain = new_blockchain
-            self.promised_ballot = tuple(req["promised_ballot"])
+            self.promised_ballot = max(getattr(self, "promised_ballot", (0,0)), tuple(req.get("promised_ballot", (0,0))))
+            self.highest_accepted_num = None
+            self.highest_accepted_val = None
+            self.proposed_block = None
+
         overwrite_file(f"./data/c_{self.id}.json", self.account_table, self.promised_ballot, new_blockchain)
+        self.recovery_event.set()
+        print("done.")
+
 
     def _listener_thread(self):
         c_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -383,8 +424,10 @@ class Peer:
                 req = json.loads(data.decode())
                 client_id = req.get('from', None)
 
-                if self.debug:
+                if self.debug == 1:
                     print(f"[DEBUG C-{self.id}] Received request from C-{client_id}: {req}")
+                elif self.debug == 2:
+                    print(f"[DEBUG C-{self.id}] Received request from C-{client_id}, Type: {req["type"]}")
 
                 if not self.dead:
                     self.request_queue.put(req)
@@ -406,8 +449,10 @@ class Peer:
         msg_type = req.get("type", None)
         if msg_type is None:
             return
-        if self.debug:
+        if self.debug == 1:
             print(f"[DEBUG C-{self.id}] Handling request: {req}") 
+        elif self.debug == 2:
+            print(f"[DEBUG C-{self.id}] Handling request from C-{req["from"]}, Type: {req["type"]}") 
 
         match msg_type:
             case "Prepare":
