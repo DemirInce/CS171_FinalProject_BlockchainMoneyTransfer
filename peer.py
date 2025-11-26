@@ -262,7 +262,10 @@ class Peer:
         if len(self.accepted_peers) == 2 and not self.decision_sent:
             self.send_decision()
         elif self.debug:
-            print(f"[DEBUG C-{self.id}] Not Enough Accepted Yet. Count: {len(self.accepted_peers)}")
+            if len(self.accepted_peers) < 2:
+                print(f"[DEBUG C-{self.id}] Not Enough Accepted Yet. Count: {len(self.accepted_peers)}")
+            else:
+                print(f"[DEBUG C-{self.id}] Majority Reached")
 
     def send_decision(self):
         with self.lock:
