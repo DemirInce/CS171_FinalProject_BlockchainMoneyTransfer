@@ -18,14 +18,18 @@ def main(id, debug, ip):
     while True:
         cmd = input().lower()
         cmd = alias_table.get(cmd, cmd)
-        if p.dead and cmd != "fixprocess": print("This process is dead."); continue
+        if p.dead and cmd != "fixprocess": 
+            print("This process is dead.")
+            continue
         match cmd:
             case "failprocess":
                 p.dead = True
 
             case "fixprocess":
-                if p.dead: p.fix()
-                else: print("This process is alive")
+                if p.dead: 
+                    p.fix()
+                else: 
+                    print("This process is alive")
 
             case "printblockchain":
                 p.print_blockchain()

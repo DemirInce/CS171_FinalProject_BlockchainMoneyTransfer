@@ -123,8 +123,10 @@ def main():
 
     b1 = bc.new_block((1,2,10))
     bc.append(b1)
+
     b2 = bc.new_block((1,2,20))
     bc.append(b2)
+    
     b3 = bc.new_block((1,2,30))
     bc.append(b3)
 
