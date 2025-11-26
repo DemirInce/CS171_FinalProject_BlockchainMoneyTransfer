@@ -1,5 +1,11 @@
 # CS171 Final Project: Distributed Blockchain Money Transfer
 
+## Overview
+Fault-tolerant decentralized system that implements Paxos to create a peer-to-peer money exchange backed by blockchain encryption.
+
+## How to run
+``` ```
+
 ## Commands
 
 1. **moneyTransfer(debit node, credit node, amount)**  
@@ -23,30 +29,30 @@
 ## Features
 
 **Debug Output Options**  
-- None: Only interface output.  
+- None: Only interface output  
 - Basic: Debug outputs with only event types  
 - Full: Debug outputs with full events  
-Usage: --debug None / Basic / Full, Defaults to None  
+Usage: `--debug None / Basic / Full, (default=None)`  
 
 **Load From File**  
 - False: Starts a fresh peer.  
 - True: Loads peer state from it's saved backup.  
-Usage: --load False / True, Defaults to False  
+Usage: `--load False / True, (default=False)`
 
 **Failure Recovery**  
 
-A peer that has been put into the dead state using the failProcess command will not reply to incoming messages.  
-When user enters FixProcess, the peer will querry all others for the required data to bring itself up to date.  
-The peer will choose the reply with the longest blockchain depth to adopt.  
+A peer that has been put into a dead state using the `failProcess` command will not reply to incoming messages.  
+When an user enters `FixProcess` on the terminal, the peer will query all other peers for the required data to bring itself up to date.  
+The peer will adopt the reply with the longest blockchain depth.  
 
 **On The Fly Recovery**  
 
-If a peer recieves an accept message from an elected proposer with a higher depth than its own, it'll initate recovery from that proposer.  
+If a peer receives an 'Accept' message from an elected proposer with a higher depth than its own, it'll initate recovery from that proposer.  
 Once the peer brings itself up to date with the proposer, it'll resume the Paxos process.  
 
 **Cryptographic Verification**  
 
-All blocks that are appended into a peer's blockchain, and all full blockchains that are adopted during recovery, are cryptographically verified.  
+All blocks that are appended onto a peer's blockchain, and all full blockchains that are adopted during recovery, are cryptographically verified.  
 
 ## Communication Protocol
 

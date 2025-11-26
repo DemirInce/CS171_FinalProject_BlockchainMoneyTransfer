@@ -148,7 +148,7 @@ class Peer:
 
         if ballot != getattr(self, "ballot", None):
             if self.debug:
-                print(f"[DEBUG C-{self.id}] Ignoring 'Promise' from C-{promised_id} with ballot {ballot} != current ballot {getattr(self,'ballot',None)}")
+                print(f"[DEBUG C-{self.id}] Ignoring 'Promise' from C-{promised_id} with ballot {ballot} != current ballot {getattr(self, 'ballot', None)}")
             return
 
         with self.lock:
@@ -401,7 +401,7 @@ class Peer:
 
         overwrite_file(f"./data/c_{self.id}.json", self.account_table, self.promised_ballot, new_blockchain)
         self.recovery_event.set()
-        print("done.")
+        print("Done.")
 
 
     def _listener_thread(self):
