@@ -76,7 +76,7 @@ Usage: `--load False / True, (default=False)`
 ### **Failure Recovery**  
 
 A peer that has been put into a dead state using the `failProcess` command will not reply to incoming messages.  
-When an user enters `FixProcess` on the terminal, the peer will query all other peers for the required data to bring itself up to date.  
+When a user enters `FixProcess` on the terminal, the peer will query all other peers for the required data to bring itself up to date.  
 The peer will adopt the reply with the longest blockchain depth.  
 
 ### **On The Fly Recovery**  
