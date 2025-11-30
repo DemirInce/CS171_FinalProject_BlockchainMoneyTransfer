@@ -1,5 +1,4 @@
 from peer import Peer
-from enum import Enum
 import argparse
 import re
 
