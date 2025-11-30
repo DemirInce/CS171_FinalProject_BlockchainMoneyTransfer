@@ -1,5 +1,4 @@
 from blockchain import Block, BlockChain
-from enum import Enum
 from utils import *
 import threading
 import queue
