@@ -35,14 +35,18 @@ def handle_file(path, values, new_block):
 
 def load_file(path):
     data = read_json(path) or {}
-    if data == {}: 
-        print("File Not Found")
-        return
+    if not data:
+        print("File Not Found or empty")
+        return None, None, None
 
-    account_table = {int(k): int(v) for k,v in data["variables"]["account_table"].items()}
-    promised_ballot = tuple(data["variables"]["promised_ballot"])
-    blocks = data["blockchain"]
-    blockchain = build_blockchain_from_list(blocks)
+    variables = data.get("variables", {})
+
+    account_table = {int(k): int(v) for k, v in variables.get("account_table", {}).items()} or {}
+    promised_ballot = tuple(variables.get("promised_ballot", (0, 0)))
+
+    blocks = data.get("blockchain", [])
+    blockchain = build_blockchain_from_list(blocks) if blocks else BlockChain()
+
     return account_table, promised_ballot, blockchain
 
 def build_blockchain_from_list(blocks):
