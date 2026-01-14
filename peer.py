@@ -472,7 +472,7 @@ class Peer:
     def _worker_thread(self):
         while True:
             req = self.request_queue.get()
-            time.sleep(3)  # Simulated network delay
+            time.sleep(3) # Simulated network delay
             self.handle_request(req)
             self.request_queue.task_done()
 

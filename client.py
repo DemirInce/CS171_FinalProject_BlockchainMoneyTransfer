@@ -66,5 +66,7 @@ if __name__ == "__main__":
             debug_num = 1
         case 'basic':
             debug_num = 2
+        case _:
+            debug_num = 0
 
     main(args.id, debug_num, args.load)
